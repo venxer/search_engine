@@ -48,7 +48,22 @@ std::string parseBody(const std::string &content)
     size_t endIndex = content.find("</body>");
     return content.substr(startIndex, endIndex - startIndex);
 }
-
+std::string parseFileLocation(const std::string &content)
+{
+    size_t startIndex = content.find("<h1>") + 4;
+    size_t endIndex = content.find("</h1>");
+    return content.substr(startIndex, endIndex - startIndex);
+}
+std::string parseDirectory(const std::string pageURL)
+{
+    std::string directory = "";
+    size_t lastSlashPos = pageURL.find_last_of('/');
+    if (lastSlashPos != std::string::npos) 
+    {
+        directory = pageURL.substr(0, lastSlashPos + 1);
+    }
+    return directory;
+}
 std::list<std::string> extractLinksFromHTML(const std::string &content)
 {
     std::list<std::string> links;
@@ -72,32 +87,51 @@ int numOfOccurrence(const std::string &body, std::string word)
 {
     int count = 0;
     size_t pos = body.find(word);
-    if(!isPhrase)
+    while (pos != std::string::npos)
     {
-        // Check if first and last character are space
-        if(isspace(static_cast<unsigned char>(body[pos - 1])) && 
-           isspace(static_cast<unsigned char>(body[pos + word.length()])))
+        count++;
+        pos = body.find(word, pos + 1);
+    }
+    return count;
+}     
+/**
+ * Finds the first of the word/phrase in given text
+ * 
+ * @param body Input text where word or phrase is to be searched
+ * @param word Word or phrase to be found in the text
+ * @param isPhrase True if word is a phrase and False Otherwise
+ * 
+ * @return Index of the first occurrence of the word or phrase in input text, or
+ *         -1 if index not found
+ */
+int firstOccurenceIndex(const std::string &body, std::string word, bool isPhrase)
+{
+    size_t pos = body.find(word);
+    while (pos != std::string::npos)
+    {
+        // If it query is not a phrase
+        if(!isPhrase)
         {
-            while (pos != std::string::npos)
+            // Check if first and last character are space
+            if(isspace(static_cast<unsigned char>(body[pos - 1])) && 
+               isspace(static_cast<unsigned char>(body[pos + word.length()])))
             {
-                count++;
-                pos = body.find(word, pos + 1);
+               return pos; 
             }
         }
-    }
-    else
-    {
-        while (pos != std::string::npos)
+        // If query is a phrase
+        else
         {
-            count++;
-            pos = body.find(word, pos + 1);
+            return pos;
         }
+        // Move onto next index of word/phrase
+        pos = body.find(word, pos + 1);
     }
-
-}                                                                          
-void search(const std::list<std::string> &queries, std::string pageURL, std::set<std::string> visitedPages,
+    return -1;
+}                                                                     
+void search(const std::list<std::string> &queries, bool isPhrase, std::string pageURL, std::set<std::string> &visitedPages,
             std::map<std::string, // key query words
-                    std::map<std::string, // URL to doc with query word
+                    std::map<std::string, // pageURL that contains query word
                             std::pair<int, int> > > &HTMLmap) //number of occurence of query word and start index.
 {
     // Open URL
@@ -109,28 +143,40 @@ void search(const std::list<std::string> &queries, std::string pageURL, std::set
         std::string pageDescription = parseDescription(pageContent);
         std::string pageBody = parseBody(pageContent);
         std::list<std::string> pageLinks = extractLinksFromHTML(pageBody);
+        std::string currentFileLink = parseFileLocation(pageContent);
 
-        Webpage webpage(pageContent, 
-                        pageTitle, 
-                        pageURL, 
-                        pageDescription,
-                        pageBody);
-        
+        // Check if URL has already been visited
+        if(visitedPages.find(currentFileLink) != visitedPages.end()) return;
+        // Add ot list of visited pages
+        visitedPages.insert(currentFileLink);
+
+        // Get current directory
+        std::string directory = parseDirectory(pageURL);
 
         // If no links in page
-        if(pageLinks.empty())
-        {
-            return;
-        }
-        else
-        {
+        if(pageLinks.empty()) return;
 
-            Webpage webpage;
-            for(std::string query : queries)
+        // Search each word in queries
+        for(std::string query : queries)
+        {
+            // std::cout << "Searching for: |" << query << "| in " << pageURL << std::endl;
+            // Number of occurrence of query across whole page
+            int occurrence = numOfOccurrence(pageContent, query);
+            // Check if page contains query word
+            if(occurrence != 0)
             {
-
+                int startIndex = firstOccurenceIndex(pageBody, query, isPhrase);
+                HTMLmap[query][pageURL] = std::make_pair(occurrence, startIndex);
             }
         }
+        // Move onto next page
+        for(std::list<std::string>::iterator it = pageLinks.begin(); it != pageLinks.end(); it++)
+        {
+            std::string nextURL = directory + *it;
+            search(queries, isPhrase, nextURL, visitedPages, HTMLmap);
+
+        }
+        
     }
 }
 
