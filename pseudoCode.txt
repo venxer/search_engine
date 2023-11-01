@@ -1,0 +1,127 @@
+create class for the html files
+**HAVE TO use either std::map or std::set or BOTH
+---------------------------------------------------------------------------------------------------------
+**HAVE to use recursion for web crawler component into a map
+
+The recursion here is, you follow links in the Seed file, and these links take you to file 1,2,3,4,..., 
+and these files contain links, and you following these links, which take you to more files, and these 
+files contain links, and you following these links, which take you to more files, and these files contain 
+links, and you following these links, which take you to more files, and these files contain links, and 
+you following these links, which take you to more files, and these files contain links, and you following 
+these links, which take you to more files, and these files contain links, and you following these links, 
+which take you to more files, and these files contain links, and you following these links, which take you 
+to more files,... eventually you stop because you can't find more files.\
+
+base case -> when there are no more files
+----------------------------------------------------------------------------------------------------------
+
+
+- Search pages
+- Identify matching documents
+- Rank resulting pages by:
+    Page Score, present page in descending order (high to low)
+        page score = (0.5 * keyboard density score + 0.5 * backlinks score) <- double
+
+    Keyword Density Score
+        1. Calculate density score for individual Keyword
+        2. Accumulate indivudal dnesity scores into a combined score
+        Keyword Density Score = (# of Times Keyword Appears) / (Total Content Length of this One Document * Keyword Density Across All Documents)
+            # of Times Keyword Appears: # of times keyboard appears across whole HTML doc 
+            Total Content Length of this One Document: Length of whole HTML doc 
+            Keyword Density Across All Documents: Consider whole HTML doc 
+
+            ex. doc 1: 50char   KW appears: 2times
+                doc 2: 30char   KW appears: 3times
+                doc 3: 100char  KW appears: 4times
+                formula: KW density accross all docs: (2+3+4) / (50 + 40 + 100) = 0.047
+                            KW Densiy Score for 1st doc: 2 / (50 * 0.047) = 0.851
+                            KW Densiy Score for 2nd doc: 3 / (50 * 0.047) = 1.596
+                            KW Densiy Score for 3rd doc: 4 / (50 * 0.047) = 0.851
+                
+                if multiple word search, KW density score = summation of score for each KW
+    
+    Blacklinks
+
+        Backlinks Score = ( 1.0 / (1 + doc_1->outgoingLinks) + 1.0 / (1 + doc_2->outgoingLinks) + ... + 1.0 / (1 + doc_N->outgoingLinks));
+
+Rules:
+1. Case sensitive
+2. Only consider HTML doc if query can be found within body
+3. Querys are 3 words or less
+4. Local folders
+
+Running program: 
+nysearch.exe html_files/index.html output.txt Tom
+nysearch.exe html_files/index.html output.txt Tom Cruise
+nysearch.exe html_files/index.html output.txt Tom and Jerry
+nysearch.exe html_files/index.html output.txt "Tom Cruise"
+
+Phrase Search vs Regular Search
+1. Phrase Search: Search by phrase (treat phrase as 1 word) -> when there are " "
+2. Regular Search: Search for word in any order
+
+Seed File: "html_files/index.html"
+
+Output File:
+    No Result Found- 
+        OutputFile:
+        Your search - dsdwoddjojdjeokdddfjwoewojo - did not match any documents.
+
+    Match Found-
+        For each document that match,
+        1. Title
+           Within the title tag
+        2. URL
+           Path to HTML doc
+        3. Description
+           Within meta description section
+        4. Snippet
+           Excerpt from the page content that relates directly to the query search
+            a. -Exactly 120 characters
+                -Phrase Search: Snippet starts from the first sentence it appears it. Will cut off after 120 characters
+                -Regular Search: If exact phrase if found, starts from the first sentence it appears in
+                                 Else start from the first sentence of the first KW
+               Can identify beginning of the sentence via the period sign before the sentence
+
+Useful Functions
+
+// Finds the first occurance of period from the end starting at the index queryPos
+size_t periodPos = data.rfind(".", queryPos);
+
+
+// find_last_of
+std::string directory;
+// suppose URL is "html_files/subdir1/subdir2/file7.html"
+size_t lastSlashPos = URL.find_last_of('/');
+if (lastSlashPos != std::string::npos) 
+{
+	// directory will now be "html_files/subdir1/subdir2/"
+	directory = URL.substr(0, lastSlashPos + 1);
+}
+
+//Removing double quotes
+size_t quotePos;
+// unfortunately, autograder will pass \" to the command line, and thus the double quote will be a part of the string.
+if( (quotePos = tmpString.find('"')) != std::string::npos ){
+	tmpString.erase(quotePos, 1); // remove the double quote character at the found position; here number 1 as the second argument means erasing 1 character.
+}
+
+// function to parse an HTML file and extract links to local files
+#include <regex>
+std::list<std::string> extractLinksFromHTML(const std::string& fileContent) {
+    std::list<std::string> links;
+    // regular expression to match href attributes in anchor tags
+    std::regex linkRegex("<a\\s+[^>]*href\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>");
+    std::smatch match;
+
+    // search for links in the HTML content
+    std::string::const_iterator start = fileContent.cbegin();
+    while (std::regex_search(start, fileContent.cend(), match, linkRegex)) {
+        if (match.size() > 1) {
+            links.push_back(match[1].str());
+        }
+        start = match.suffix().first;
+    }
+
+    return links;
+}
