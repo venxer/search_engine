@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <set>
+#include <vector>
 
 Webpage::Webpage()
 {
@@ -35,7 +36,6 @@ std::string parseTitle(const std::string &content)
     size_t endIndex = content.find("</title>");
     return content.substr(startIndex, endIndex - startIndex);
 }
-
 std::string parseDescription(const std::string &content)
 {
     size_t startIndex = content.find("content=\"") + 9;
@@ -63,6 +63,16 @@ std::string parseDirectory(const std::string pageURL)
         directory = pageURL.substr(0, lastSlashPos + 1);
     }
     return directory;
+}
+std::string parseFileName(const std::string &link)
+{
+    size_t endIndex = link.find(".html");
+    size_t startIndex = link.rfind("/") + 1;
+    if(startIndex == std::string::npos)
+    {
+        return link.substr(0, endIndex);
+    }
+    return link.substr(startIndex, endIndex - startIndex);
 }
 std::list<std::string> extractLinksFromHTML(const std::string &content)
 {
@@ -129,7 +139,89 @@ int firstOccurenceIndex(const std::string &body, std::string word, bool isPhrase
     }
     return -1;
 }                                                                     
-void search(const std::list<std::string> &queries, bool isPhrase, std::string pageURL, std::set<std::string> &visitedPages,
+double getAllDocLength(const std::set<std::string> &visitedPages)
+{
+    double totalLength = 0;
+    std::set<std::string>::iterator it;
+    for(it = visitedPages.begin(); it != visitedPages.end(); it++)
+    {
+        std::ifstream page(*it);
+        if (page.is_open()) 
+        {
+            std::string pageContent((std::istreambuf_iterator<char>(page)), std::istreambuf_iterator<char>());
+            totalLength += pageContent.length();
+        }
+    }
+    return totalLength;
+}
+double allDocDensity(const std::map<std::string, std::pair<int, int> > &docMap, const std::set<std::string> &visitedPages)
+{
+    double totalLength = getAllDocLength(visitedPages);
+    double totalOccurence = 0;
+    std::map<std::string, std::pair<int, int> >::const_iterator docMapit;
+    for(docMapit = docMap.begin(); docMapit != docMap.end(); docMapit++)
+    {
+        totalOccurence += docMapit->second.first;
+    }
+
+    return totalOccurence / totalLength;
+}
+double allDocDensityPhrase(const std::set<std::string> &visitedPages, std::string word)
+{// FormatedBy URL, Occurence, first Index
+    double totalLength = getAllDocLength(visitedPages);
+    double totalOccurence = 0;
+    std::set<std::string>::const_iterator it;
+
+    //Open each link
+    for(it = visitedPages.begin(); it != visitedPages.end(); it++)
+    {
+        std::ifstream page(*it);
+        if (page.is_open()) 
+        {
+            std::string pageContent((std::istreambuf_iterator<char>(page)), std::istreambuf_iterator<char>());
+            totalOccurence += numOfOccurrence(pageContent, word);
+        }
+    }
+
+    return totalOccurence / totalLength;
+}
+double calculateDensity(double occurenceCount, double length, double allDocDensity)
+{
+    return occurenceCount / (length * allDocDensity);
+}
+std::vector<Webpage> combineDensityScores(const std::vector<Webpage> &webpages)
+{
+    std::vector<Webpage> output;
+    std::map<std::string, std::pair<Webpage, double> > densityScoreMap;
+    for(int x = 0; x < webpages.size(); x++)
+    {
+        std::string URL = webpages[x].getURL();
+        double densityScore = webpages[x].getDensityScore();
+        
+        // If the URL is already in the map, add the density to the existing density
+        if (densityScoreMap.find(URL) != densityScoreMap.end()) 
+        {
+            densityScoreMap[URL].second += densityScore;
+        } 
+        // If not, set the object and density score
+        else 
+        {
+            densityScoreMap[URL].first = webpages[x];
+            densityScoreMap[URL].second = densityScore;
+        }
+    }
+    std::map<std::string, std::pair<Webpage, double> >::iterator it;
+    for(it = densityScoreMap.begin(); it != densityScoreMap.end(); it++)
+    {
+        // Combine Density 
+        double newDensityScore = it->second.second;
+        it->second.first.setDensityScore(newDensityScore);
+        output.push_back(it->second.first);
+    }
+    return output;
+}
+void search(const std::list<std::string> &queries, bool isPhrase, std::string pageURL, std::set<std::string> &visitedPages, 
+            std::map<std::string, int> &backlinkMap,
             std::map<std::string, // key query words
                     std::map<std::string, // pageURL that contains query word
                             std::pair<int, int> > > &HTMLmap) //number of occurence of query word and start index.
@@ -147,8 +239,16 @@ void search(const std::list<std::string> &queries, bool isPhrase, std::string pa
 
         // Check if URL has already been visited
         if(visitedPages.find(currentFileLink) != visitedPages.end()) return;
-        // Add ot list of visited pages
+        
+        // Add to list of visited pages
         visitedPages.insert(currentFileLink);
+
+        // Keep track of backlinks
+        for(std::string link : pageLinks)
+        {
+
+            backlinkMap[parseFileName(link)]++;
+        }
 
         // Get current directory
         std::string directory = parseDirectory(pageURL);
@@ -173,18 +273,105 @@ void search(const std::list<std::string> &queries, bool isPhrase, std::string pa
         for(std::list<std::string>::iterator it = pageLinks.begin(); it != pageLinks.end(); it++)
         {
             std::string nextURL = directory + *it;
-            search(queries, isPhrase, nextURL, visitedPages, HTMLmap);
-
+            search(queries, isPhrase, nextURL, visitedPages, backlinkMap, HTMLmap);
         }
         
     }
 }
+std::map<std::string, std::vector<Webpage> > webpageMap(std::map<std::string, 
+                                                            std::map<std::string, 
+                                                                std::pair<int, int> > > map, const std::set<std::string> &visitedPages)
+{ // Calculate density of each key 
+    std::map<std::string, std::vector<Webpage> > outMap;
 
-//check if links in each file. 
-//check for KW in file, if exist, save file to map. where key is word.
-//KW format is in list. So for each word in list, check and add to map 
+    std::map<std::string, std::map<std::string, std::pair<int, int> > >::iterator outerMapIt;
+    for(outerMapIt = map.begin(); outerMapIt != map.end(); outerMapIt++)
+    {
+        // Density of all pages matching word
+        double allDensity = allDocDensity(outerMapIt->second, visitedPages);
+        std::string word = outerMapIt->first;
 
+        //Key: Webpage Link
+        //Pair: Number of Occurrence, First Occurrence Index
+        std::map<std::string, std::pair<int, int> >::iterator innerMapIt;
+        //Loop thorugh each webpage link
+        for(innerMapIt = outerMapIt->second.begin(); innerMapIt != outerMapIt->second.end(); innerMapIt++)
+        {
+            std::vector<Webpage> webpages;
+            std::string pageURL = innerMapIt->first;
+            std::ifstream page(pageURL);
+            if (page.is_open()) 
+            {
+                // Open HTML doc
+                std::string webpageContent((std::istreambuf_iterator<char>(page)), std::istreambuf_iterator<char>());
+                // Create webpage object for each matching webpage
+                Webpage webpage(webpageContent, 
+                                parseTitle(webpageContent), 
+                                pageURL, 
+                                parseDescription(webpageContent),
+                                parseBody(webpageContent));
+                // Set Density Score
+                int occurenceCount = innerMapIt->second.first;
+                double densityScore = calculateDensity(occurenceCount, webpageContent.length(), allDensity);
+                webpage.setDensityScore(densityScore);
+                // Push webpage to vector of webpages
+                outMap[word].push_back(webpage);
+            }
+        }
+    } 
+    return outMap;
+}
+std::map<std::string, std::vector<Webpage> > webpageMapPhrase(std::map<std::string, 
+                                                                   std::map<std::string, 
+                                                                        std::pair<int, int> > > map, const std::set<std::string> &visitedPages, std::list<std::string> wordInPhrase)
+{
+    std::map<std::string, std::vector<Webpage> > outMap;
 
+    std::map<std::string, std::map<std::string, std::pair<int, int> > >::iterator outerMapIt = map.begin();
+    for(std::string word : wordInPhrase)
+    {
+        double allDensity = allDocDensityPhrase(visitedPages, word);
+        std::cout << "Word: " << word << "    AllDensity: " << allDensity << std::endl;
+
+        //Key: Webpage Link
+        //Pair: Number of Occurrence, First Occurrence Index
+        std::map<std::string, std::pair<int, int> >::iterator innerMapIt;
+        //Loop thorugh each webpage link
+        for(innerMapIt = outerMapIt->second.begin(); innerMapIt != outerMapIt->second.end(); innerMapIt++)
+        {
+            std::vector<Webpage> webpages;
+            std::string pageURL = innerMapIt->first;
+            std::ifstream page(pageURL);
+            if (page.is_open()) 
+            {
+                // Open HTML doc
+                std::string webpageContent((std::istreambuf_iterator<char>(page)), std::istreambuf_iterator<char>());
+                // Create webpage object for each matching webpage
+                Webpage webpage(webpageContent, 
+                                parseTitle(webpageContent), 
+                                pageURL, 
+                                parseDescription(webpageContent),
+                                parseBody(webpageContent));
+                // Set Density Score
+                int occurenceCount = numOfOccurrence(webpageContent, word);
+                // int occurenceCount = innerMapIt->second.first;
+                double densityScore = calculateDensity(occurenceCount, webpageContent.length(), allDensity);
+                webpage.setDensityScore(densityScore);
+                // Push webpage to vector of webpages
+                outMap[word].push_back(webpage);
+            }
+        }
+    }
+
+    return outMap;
+}
+
+void operator+(Webpage &page1, Webpage &page2)
+{
+    double density = page1.getDensityScore() + page2.getDensityScore();
+    page1.setDensityScore(density);
+    page2.setDensityScore(density);
+}
 // std::ostream &operator<<(std::ostream &out_str, const Webpage &webpage)
 // {
 //     out_str << webpage.title;
