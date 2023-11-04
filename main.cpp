@@ -5,40 +5,37 @@
 #include <iostream>
 #include <set>
 #include <sstream>
+#include <algorithm>
 
 /**
  * Check if file can successfully be opened
  * 
  * @param fileName name of file to be opened
  * 
- * return the opened file stream
+ * @return the opened file stream
  */
 template<typename T>
 T validateFile(std::string fileName);
-std::vector<std::string> splitBySpace(const std::string& input);
 
 int main(int argc, char const *argv[])
 {
-    if(argc > 6) 
-    {
-        std::cerr << "Invalid Arguement Size" << std::endl;
-        exit(1);
-    }
     std::string seedURL = argv[1];
     std::ifstream input = validateFile<std::ifstream>(seedURL);
     std::ofstream output = validateFile<std::ofstream>(argv[2]);
-    std::list<std::string> queries; // Individual word
-    std::list<std::string> phraseQueries; // 1 Word
+    // Individual Words
+    std::list<std::string> queries; 
+    // Whole Word
+    std::list<std::string> phraseQueries;
 
-    std::string phraseQuery;
+    // Add arguments to a vector which will contain all words
     bool isPhrase = false;
-    for(int x = 3; x < 6; x++)
+    for(int x = 3; x < argc; x++)
     {
         if(argv[x] != NULL)
         {
+            // Check for ". If exist remove and set mode as phrase search.
             std::string arg = argv[x];
-            // size_t quotePos = arg.find("\"");
-            size_t quotePos = arg.find("+");
+            size_t quotePos = arg.find("\"");
             if(quotePos != std::string::npos)
             {
                 arg.erase(quotePos, 1);     
@@ -48,104 +45,90 @@ int main(int argc, char const *argv[])
         }
     }
 
-    // std::cout << "Phrase: " << phraseQuery << std::endl;
-    // for(auto query : queries)
-    // {
-    //     std::cout << query << std::endl;
-    // }
 
+    // Combine all words in vector into 1 word
+    std::string queryAsWhole = "";
+    for(std::list<std::string>::iterator it = queries.begin(); it != queries.end();it++)
+    {
+        // If not last
+        if(it != --queries.end())
+        {
+            queryAsWhole += *it + " ";
+        }
+        else
+        {
+            queryAsWhole += *it;
+        }
+    }
+    std::map<std::string, std::map<std::string, int> > map;
+    std::map<std::string, std::vector<Webpage> > mapOfWebpages;
     std::set<std::string> visitedPages;
-    std::map<std::string, int> backlinkMap;
-    std::map<std::string, std::map<std::string, std::pair<int, int> > > map;
+    std::map<std::string, std::pair<std::vector<std::string>, int> > backlinkMap;
+
     if(isPhrase)
     {
-        // Combine queries into 1 word
-        for(std::list<std::string>::iterator it = queries.begin(); it != queries.end();it++)
-        {
-            // If not last
-            if(it != queries.end()--)
-            {
-                phraseQuery += *it + " ";
-            }
-            else
-            {
-                phraseQuery += *it;
-            }
-        }
-        phraseQueries.push_back(phraseQuery);
-        // Search by Phrase
+        // Treat query of words as a whole word
+        phraseQueries.push_back(queryAsWhole);
+        // Phrase Search
         search(phraseQueries, isPhrase, seedURL, visitedPages, backlinkMap, map);
+        // Create a map of webpage object for phrase
+        mapOfWebpages = webpageMapPhrase(map, backlinkMap, visitedPages, queries);
+
     }
     else
     {
-        // Search by word
+        // Regular Search
         search(queries, isPhrase, seedURL, visitedPages, backlinkMap, map);
+        // Create a map of webpage object for each word
+        mapOfWebpages = webpageMap(map, backlinkMap, visitedPages);
     }
 
-             //Word       //vector of matching webpages
-    std::map<std::string, std::vector<Webpage> > mapOfWebpages;
-    if(!isPhrase)
-    {
-        std::cout << "Phrase: False" << std::endl;
-        mapOfWebpages = webpageMap(map, visitedPages);
-    }
-    else
-    {
-        std::cout << "Phrase: True" << std::endl;
-        mapOfWebpages = webpageMapPhrase(map, visitedPages, queries);
-    }
-
-
+ 
     std::vector<Webpage> allMatchingWeb;
+    // Combine the webpages from each word into allMatchingWeb
     std::map<std::string, std::vector<Webpage> >::iterator it;
     for(it = mapOfWebpages.begin(); it != mapOfWebpages.end(); it++)
     {
         allMatchingWeb.insert(allMatchingWeb.end(), it->second.begin(), it->second.end());
     }
-    // Combine density of duplicate webpages and remove duplicates 
+    // Combine density of duplicate webpages which will also remove duplicate webpages
     allMatchingWeb = combineDensityScores(allMatchingWeb);
 
+    // Find and set Starting index for each webpage object based on the query
+    findAndSetIndex(allMatchingWeb, queries, queryAsWhole, isPhrase);
 
-    for(std::string word: queries)
-    {
-        output << word << " ";
-    }
-     for(std::string word: phraseQueries)
-    {
-        output << word << " ";
-    }
-    output << std::endl;
-    for(int x = 0; x < allMatchingWeb.size(); x++)
-    {
-        output << "Title: " << allMatchingWeb[x].getTitle() << std::endl;
-        output << "URL: " << allMatchingWeb[x].getURL() << std::endl;
-        output << "Density: " << allMatchingWeb[x].getDensityScore() << std::endl;
-        output << std::endl;
-    }
-    //Loop Through Pages
-    // std::map<std::string, std::vector<Webpage> >::iterator it;
-    // for(it = mapOfWebpages.begin(); it != mapOfWebpages.end(); it++)
-    // {
-    //     std::cout << "Word: " << it->first << std::endl;
-    //     // for(int x = 0; x < it->second.size(); x++)
-    //     // {
-    //     //     output << std::endl;
-    //     //     output << "Title: " << it->second[x].getTitle() << std::endl;
-    //     //     output << "URL: " << it->second[x].getURL() << std::endl;
-    //     //     output << "Density: " << it->second[x].getDensityScore() << std::endl;
-    //     //     output << std::endl;
-    //     //     // std::cout << "URL: " << it->second[x].getURL() << std::endl;
-    //     // }
-    //     for(int x = 0; x < allMatchingWeb.size(); x++)
-    //     {
-    //         output << std::endl;
-    //         output << "Title: " << allMatchingWeb[x].getTitle() << std::endl;
-    //         output << "URL: " << allMatchingWeb[x].getURL() << std::endl;
-    //         output << "Density: " << allMatchingWeb[x].getDensityScore() << std::endl;
-    //         output << std::endl;
-    //     }
-    // }
+    // Set Final Page Score
+    setPageScores(allMatchingWeb);
 
+    // Sort by Page score
+    std::sort(allMatchingWeb.begin(), allMatchingWeb.end());
+    
+    // If no Match Found
+    if(allMatchingWeb.empty())
+    {
+        output << "Your search - " << queryAsWhole << " - did not match any documents." << std::endl;
+    }
+    // If Matches found
+    else
+    {
+        output << "Matching documents: \n" << std::endl;
+        // Print each object from vector of matching webpages
+        for(int x = 0; x < allMatchingWeb.size(); x++)
+        {
+            output << allMatchingWeb[x];
+            if(x != allMatchingWeb.size() - 1)
+            {
+                output << "\n" << std::endl;
+            }
+            else
+            {
+                output << "\n";
+            }
+        }
+    }
+
+    input.close();
+    output.close();
     return 0;
 }
 
@@ -155,18 +138,4 @@ T validateFile(std::string fileName)
     T stream(fileName);
     if(!stream.good()) std::cerr << "File Error" << std::endl;
     return stream;
-}
-std::vector<std::string> splitBySpace(const std::string& input) 
-{
-    std::istringstream stream(input);
-    std::string word;
-    std::vector<std::string> words;
-
-    // Split the string into words
-    while (stream >> word) 
-    {
-        words.push_back(word);
-    }
-
-    return words;
 }
