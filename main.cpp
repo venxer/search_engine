@@ -95,7 +95,7 @@ int main(int argc, char const *argv[])
     allMatchingWeb = combineDensityScores(allMatchingWeb);
 
     // Find and set Starting index for each webpage object based on the query
-    findAndSetIndex(allMatchingWeb, queries, queryAsWhole, isPhrase);
+    findAndSetIndex(allMatchingWeb, queries, queryAsWhole);
 
     // Set Final Page Score
     setPageScores(allMatchingWeb);

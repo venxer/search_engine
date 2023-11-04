@@ -69,20 +69,21 @@ double allDocDensity(const std::map<std::string, int > &docMap,
 double allDocDensityPhrase(const std::set<std::string> &visitedPages, std::string word);
 double calculateDensity(double occurenceCount, double length, double allDocDensity);
 std::vector<Webpage> combineDensityScores(const std::vector<Webpage> &webpages);
-double calculateBackLink(const std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap, std::string pageURL);
+double calculateBackLink(const std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap,
+                         std::string pageURL);
 double calculatePageScore(double densityScore, double backlinkScore);
-void search(const std::list<std::string> &queries, bool isPhrase, std::string pageURL, std::set<std::string> &visitedPages,
-            std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap, //File, Pair(incoming, outgoing)
-            std::map<std::string, // key query words
-                    std::map<std::string, // pageURL that contains query word
-                            int> > &HTMLmap); //number of occurence of query word and start index.
+void search(const std::list<std::string> &queries, bool isPhrase, std::string pageURL, 
+            std::set<std::string> &visitedPages,
+            std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap, 
+            std::map<std::string, std::map<std::string, int > > &HTMLmap);
 std::map<std::string, std::vector<Webpage> > webpageMap(const std::map<std::string, std::map<std::string, int> > &map, 
                                                         const std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap, 
                                                         const std::set<std::string> &visitedPages);
 std::map<std::string, std::vector<Webpage> > webpageMapPhrase(const std::map<std::string, std::map<std::string, int > > &map, 
                                                               const std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap, 
-                                                              const std::set<std::string> &visitedPages, std::list<std::string> wordInPhrase);
-void findAndSetIndex(std::vector<Webpage> &webpageMap, std::list<std::string> queries, std::string queryAsWhole, bool isPhrase);
+                                                              const std::set<std::string> &visitedPages, 
+                                                              std::list<std::string> wordInPhrase);
+void findAndSetIndex(std::vector<Webpage> &webpageMap, const std::list<std::string> &queries, std::string queryAsWhole);
 void setPageScores(std::vector<Webpage> &webpages);
 std::ostream &operator<<(std::ostream &out_str, const Webpage &webpage);
 

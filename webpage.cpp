@@ -356,7 +356,8 @@ std::vector<Webpage> combineDensityScores(const std::vector<Webpage> &webpages)
  * 
  * @return {double}    : Backlink Score of current webpage
  */
-double calculateBackLink(const std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap, std::string pageURL)
+double calculateBackLink(const std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap,
+                         std::string pageURL)
 {
     double output = 0.0;
     // For each page pointing to webpage, calculate score their outgoing link score
@@ -423,11 +424,6 @@ void search(const std::list<std::string> &queries, bool isPhrase, std::string pa
         // Keep track of outgoing Links
         backlinkMap[parseFileName(pageURL)].second = pageLinks.size();
 
-        // Get current directory
-        std::string directory = parseDirectory(pageURL);
-
-        // If no outgoing links in page
-        if(pageLinks.empty()) return;
 
         // Search each word in queries
         for(std::string query : queries)
@@ -441,19 +437,40 @@ void search(const std::list<std::string> &queries, bool isPhrase, std::string pa
             }
         }
 
+        // If no outgoing links in page
+        if(pageLinks.empty()) return;
+
+        // Get current directory
+        std::string directory = parseDirectory(pageURL);
         // Move onto next page
         for(std::list<std::string>::iterator it = pageLinks.begin(); it != pageLinks.end(); it++)
         {
             std::string nextURL = directory + *it;
+            // Recursicely call search to crawl and search through all possbile HTML files
             search(queries, isPhrase, nextURL, visitedPages, backlinkMap, HTMLmap);
         }
         
     }
 }
+/**
+ * REGULAR SEARCH
+ * Generates a map of query words as keys to vectors of Webpage containing matching webpages that match to the key
+ * Generates and set density scores, backlink scores
+ * 
+ * @param  map                                           : Map with words from query as keys (key1). Values for each key (word) includes 
+ *                                                         another Map with the page URL as the key (key2) and number of occurence of 
+ *                                                         word(key1) in page(key2)
+ * @param backlinkMap                                    : Map with file name as keys and pair values of a vector of strings containing
+ *                                                         all URLs that points
+ * @param visitedPages                                   : Set of page URLs that represents all URLS that have already been crawled 
+ *                                                         and searched 
+ * @return {std::map<std::string, std::vector<Webpage> > : map with words from query as keys to vectors of Webpage that contains 
+ *                                                         query word(s)
+ */
 std::map<std::string, std::vector<Webpage> > webpageMap(const std::map<std::string, std::map<std::string, int> > &map, 
                                                         const std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap, 
                                                         const std::set<std::string> &visitedPages)
-{ // Calculate density of each key 
+{
     std::map<std::string, std::vector<Webpage> > outMap;
 
     std::map<std::string, std::map<std::string, int > >::const_iterator outerMapIt;
@@ -463,8 +480,7 @@ std::map<std::string, std::vector<Webpage> > webpageMap(const std::map<std::stri
         double allDensity = allDocDensity(outerMapIt->second, visitedPages);
         std::string word = outerMapIt->first;
 
-        //Key: Webpage Link
-        //Pair: Number of Occurrence, First Occurrence Index
+        //Key: Webpage Link | Pair: Number of Occurrence, First Occurrence Index
         std::map<std::string, int >::const_iterator innerMapIt;
         //Loop thorugh each webpage link
         for(innerMapIt = outerMapIt->second.begin(); innerMapIt != outerMapIt->second.end(); innerMapIt++)
@@ -486,9 +502,11 @@ std::map<std::string, std::vector<Webpage> > webpageMap(const std::map<std::stri
                 int occurenceCount = innerMapIt->second;
                 double densityScore = calculateDensity(occurenceCount, webpageContent.length(), allDensity);
                 webpage.setDensityScore(densityScore);
+
                 // Calculate and Set BackLink Score;
                 double backlinkScore = calculateBackLink(backlinkMap, pageURL);
                 webpage.setBacklinkScore(backlinkScore);
+
                 // Push webpage to vector of webpages
                 outMap[word].push_back(webpage);
             }
@@ -496,19 +514,36 @@ std::map<std::string, std::vector<Webpage> > webpageMap(const std::map<std::stri
     } 
     return outMap;
 }
+/**
+ * PHRASE SEARCH
+ * Generates a map of query words as keys to vectors of Webpage containing matching webpages that match to the key
+ * Generates and set density scores, backlink scores
+ * 
+ * @param  map                                           : Map with words from query as keys (key1). Values for each key (word) includes 
+ *                                                         another Map with the page URL as the key (key2) and number of occurence of 
+ *                                                         word(key1) in page(key2)
+ * @param backlinkMap                                    : Map with file name as keys and pair values of a vector of strings containing
+ *                                                         all URLs that points
+ * @param visitedPages                                   : Set of page URLs that represents all URLS that have already been crawled 
+ *                                                         and searched 
+ * @param wordInPhrase                                   : List of strings which contains each word of the phrase
+ * @return {std::map<std::string, std::vector<Webpage> > : map with words from query as keys to vectors of Webpage that contains 
+ *                                                         query word(s)
+ */
 std::map<std::string, std::vector<Webpage> > webpageMapPhrase(const std::map<std::string, std::map<std::string, int > > &map, 
                                                               const std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap, 
-                                                              const std::set<std::string> &visitedPages, std::list<std::string> wordInPhrase)
+                                                              const std::set<std::string> &visitedPages, 
+                                                              std::list<std::string> wordInPhrase)
 {
     std::map<std::string, std::vector<Webpage> > outMap;
 
     std::map<std::string, std::map<std::string, int > >::const_iterator outerMapIt = map.begin();
+    // Iterate through each word in the phrase
     for(std::string word : wordInPhrase)
     {
         double allDensity = allDocDensityPhrase(visitedPages, word);
 
-        //Key: Webpage Link
-        //Pair: Number of Occurrence, First Occurrence Index
+        //Key: Webpage Link | Pair: Number of Occurrence, First Occurrence Index
         std::map<std::string, int>::const_iterator innerMapIt;
         //Loop thorugh each webpage link
         for(innerMapIt = outerMapIt->second.begin(); innerMapIt != outerMapIt->second.end(); innerMapIt++)
@@ -530,9 +565,11 @@ std::map<std::string, std::vector<Webpage> > webpageMapPhrase(const std::map<std
                 int occurenceCount = numOfOccurrence(webpageContent, word);
                 double densityScore = calculateDensity(occurenceCount, webpageContent.length(), allDensity);
                 webpage.setDensityScore(densityScore);
+
                 // Calculate and Set BackLink Score;
                 double backlinkScore = calculateBackLink(backlinkMap, pageURL);
                 webpage.setBacklinkScore(backlinkScore);
+
                 // Push webpage to vector of webpages
                 outMap[word].push_back(webpage);
             }
@@ -541,47 +578,68 @@ std::map<std::string, std::vector<Webpage> > webpageMapPhrase(const std::map<std
 
     return outMap;
 }
-void findAndSetIndex(std::vector<Webpage> &webpageMap, std::list<std::string> queries, std::string queryAsWhole, bool isPhrase)
+/**
+ * Searches for webpages that contain all the query words. If all words from query appear together, set index to where they 
+ * appear together. If they do not appear together, set index to first occurence of the first query.
+ * Generates a snippet for each matching webpage in the given vector of Webpage objects based on theindex
+ * 
+ * @param  webpageMap   : Vector of Webpages where each element is processed, removed, and/or attributes edited
+ * @param  queries      : A list of strings representing the search query words
+ * @param  queryAsWhole : A string representing the entire search query as a phrase
+ */
+void findAndSetIndex(std::vector<Webpage> &webpageMap, const std::list<std::string> &queries, std::string queryAsWhole)
 {
     size_t temp;
     std::vector<Webpage>::iterator it;
+    // Iterate through the vector of Webpages
     for(it = webpageMap.begin(); it != webpageMap.end();)
     {
-        int min = INT_MAX;
+        int index;
         bool isContainAll = true;
-        for(std::string word : queries)
+        // Check if current webpage contains all query words
+        for(const std::string word : queries)
         {
-
             temp = firstOccurenceIndex(it->getBody(), word, true);
-
             if(temp == std::string::npos) 
             {
+                // Current Webpage does not contain all query words
                 isContainAll = false;
                 break;
             }
         }
         if(!isContainAll)
         {
+            // Erase current Webpage if it does not contain all query words
             it = webpageMap.erase(it);
         }
         else
         {
+            // Calculate first occurence of words.
+            // If all words in query can be found together, that becomes the index.
+            // Else index is the first occurence of the first query word
             temp = firstOccurenceIndex(it->getBody(), queryAsWhole, true);
             if(temp != std::string::npos)
             {
-                min = temp;
+                index = temp;
             }
             else
             {
-                min = firstOccurenceIndex(it->getBody(), *queries.begin(), true);
+                index = firstOccurenceIndex(it->getBody(), *queries.begin(), true);
             }
-            it->setStartindex(min);
-            it->setSnippet(min);
+            
+            // Set start index and set where snippet should start
+            it->setStartindex(index);
+            it->setSnippet(index);
+            // Move onto next Webpage in vector
             ++it;
         }
-
     }
 }
+/**
+ * Set overall page score of a webpage object
+ * 
+ * @param  webpages : Webpage to have overall page score set
+ */
 void setPageScores(std::vector<Webpage> &webpages)
 {
     for(int x = 0; x < webpages.size(); x++)
@@ -593,10 +651,25 @@ void setPageScores(std::vector<Webpage> &webpages)
         webpages[x].setPageScore(calculatePageScore(densityScore, backlinkScore));
     }
 }
+/**
+ * Current webpage compare overall page score of objects
+ * 
+ * @param  other   : Webpage object to compare page score against
+
+ * @return {bool}  : True if current webpage has a greater page score. False otherwise
+ */
 bool Webpage::operator<(const Webpage &other) const 
 {
     return pageScore > other.pageScore;
 }
+/**
+ * Outputs  title, URL, description, and snippet
+ * 
+ * @param  out_str         : Outstream to print to
+ * @param  webpage         : Webpage to be printed
+ * 
+ * @return {std::ostream}  : Output stream
+ */
 std::ostream &operator<<(std::ostream &out_str, const Webpage &webpage)
 {
         out_str << "Title: " << webpage.title << "\n"
