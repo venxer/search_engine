@@ -587,7 +587,7 @@ std::map<std::string, std::vector<Webpage> > webpageMapPhrase(const std::map<std
  * @param  queries      : A list of strings representing the search query words
  * @param  queryAsWhole : A string representing the entire search query as a phrase
  */
-void findAndSetIndex(std::vector<Webpage> &webpageMap, const std::list<std::string> &queries, std::string queryAsWhole)
+void findAndSetIndex(std::vector<Webpage> &webpageMap, const std::list<std::string> &queries, std::string queryAsWhole, bool isPhrase)
 {
     size_t temp;
     std::vector<Webpage>::iterator it;
@@ -597,9 +597,9 @@ void findAndSetIndex(std::vector<Webpage> &webpageMap, const std::list<std::stri
         int index;
         bool isContainAll = true;
         // Check if current webpage contains all query words
-        for(const std::string word : queries)
+        for(const std::string &word : queries)
         {
-            temp = firstOccurenceIndex(it->getBody(), word, true);
+            temp = firstOccurenceIndex(it->getBody(), word, isPhrase);
             if(temp == std::string::npos) 
             {
                 // Current Webpage does not contain all query words

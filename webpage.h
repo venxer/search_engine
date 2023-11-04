@@ -83,7 +83,7 @@ std::map<std::string, std::vector<Webpage> > webpageMapPhrase(const std::map<std
                                                               const std::map<std::string, std::pair<std::vector<std::string>, int> > &backlinkMap, 
                                                               const std::set<std::string> &visitedPages, 
                                                               std::list<std::string> wordInPhrase);
-void findAndSetIndex(std::vector<Webpage> &webpageMap, const std::list<std::string> &queries, std::string queryAsWhole);
+void findAndSetIndex(std::vector<Webpage> &webpageMap, const std::list<std::string> &queries, std::string queryAsWhole, bool isPhrase);
 void setPageScores(std::vector<Webpage> &webpages);
 std::ostream &operator<<(std::ostream &out_str, const Webpage &webpage);
 
